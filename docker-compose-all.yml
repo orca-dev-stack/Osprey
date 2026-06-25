@@ -1,0 +1,137 @@
+version: "3.9"
+
+services:
+  # =========================
+  # Core API (Fraud Scoring)
+  # =========================
+  api:
+    build: .
+    container_name: osprey_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATA_DIR=/app/data
+      - MODEL_DIR=/app/models_artifacts
+      - DB_DSN=postgresql://osprey:osprey@postgres:5432/osprey
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # =========================
+  # Streamlit Risk Dashboard
+  # =========================
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    container_name: osprey_dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # =========================
+  # PostgreSQL (Fraud Scores)
+  # =========================
+  postgres:
+    image: postgres:15
+    container_name: osprey_postgres
+    environment:
+      - POSTGRES_USER=osprey
+      - POSTGRES_PASSWORD=osprey
+      - POSTGRES_DB=osprey
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  # =========================
+  # Redis (Cache / Fast Lookups)
+  # =========================
+  redis:
+    image: redis:7
+    container_name: osprey_redis
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # =========================
+  # MLflow (Model Registry)
+  # =========================
+  mlflow:
+    image: python:3.11-slim
+    container_name: osprey_mlflow
+    working_dir: /app
+    volumes:
+      - .:/app
+      - mlruns:/app/mlruns
+    command: >
+      sh -c "
+      pip install --no-cache-dir mlflow &&
+      mlflow ui
+      --backend-store-uri sqlite:///mlflow.db
+      --host 0.0.0.0
+      --port 5000
+      --default-artifact-root /app/mlruns
+      "
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  # =========================
+  # Airflow (Orchestration)
+  # =========================
+  airflow-webserver:
+    image: apache/airflow:2.9.0
+    container_name: osprey_airflow_web
+    depends_on:
+      - airflow-postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    ports:
+      - "8080:8080"
+    command: webserver
+    restart: unless-stopped
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.0
+    container_name: osprey_airflow_scheduler
+    depends_on:
+      - airflow-postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    command: scheduler
+    restart: unless-stopped
+
+  airflow-postgres:
+    image: postgres:15
+    container_name: osprey_airflow_db
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - airflow_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  mlruns:
+  airflow_pgdata:

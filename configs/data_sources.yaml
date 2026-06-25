@@ -1,0 +1,28 @@
+kaggle:
+  - name: creditcard_fraud
+    dataset: mlg-ulb/creditcardfraud
+    output: data/raw/creditcard_fraud.csv
+
+  - name: ieee_fraud
+    competition: ieee-fraud-detection
+    output: data/raw/ieee_fraud.zip
+
+  - name: elliptic_bitcoin
+    dataset: ellipticco/elliptic-data-set
+    output: data/raw/elliptic_bitcoin.zip
+
+http:
+  - name: banknote_authentication
+    url: https://archive.ics.uci.edu/ml/machine-learning-databases/00267/data_banknote_authentication.txt
+    output: data/raw/banknote_authentication.txt
+
+  - name: forex_dataset
+    url: https://www.kaggle.com/datasets/brunotly/forex-historical-dataset/download
+    output: data/raw/forex_historical.zip
+
+bigquery:
+  - name: bitcoin_transactions
+    project: bigquery-public-data
+    dataset: crypto_bitcoin
+    table: transactions
+    output: data/raw/bitcoin_transactions.parquet
